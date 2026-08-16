@@ -1,9 +1,13 @@
+#include <errno.h>
 #include <math.h>
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-static void get_prime_number_count(unsigned long long int min_num, unsigned long long int max_num, unsigned long int *count) {
+#define OUTPUT_DIR "/mnt/exports/output"
+
+static void get_prime_number_count(unsigned long long int min_num, unsigned long long int max_num, unsigned long int *count, FILE *output) {
     unsigned long long int init_num = min_num;
 
     while (init_num <= max_num) {
@@ -24,6 +28,11 @@ static void get_prime_number_count(unsigned long long int min_num, unsigned long
         /* a prime number is found */
         if (counter == 0) {
             ++(*count);
+
+            /* save prime number */
+            if (output != NULL) {
+                fprintf(output, "%llu\n", init_num);
+            }
         }
 
         ++init_num;
@@ -65,10 +74,27 @@ int main(int argc, char *argv[]) {
     unsigned long int local_prime_number_count = 0;
     unsigned long int total_prime_number_count = 0;
 
-    starttime = MPI_Wtime();
-
     /* retrieve processor name */
     MPI_Get_processor_name(processor_name, &name_len);
+
+    /* set up output file variables */
+    FILE *prime_number_output;
+    prime_number_output = NULL;
+
+    char prime_number_output_filename[BUFSIZ];
+
+    /* make sure output filename ALWAYS include processor name + rank number to avoid filename collision */
+    snprintf(prime_number_output_filename, BUFSIZ, "%s/find-prime-number.%s.rank%d.out", OUTPUT_DIR, processor_name, rank);
+
+    prime_number_output = fopen(prime_number_output_filename, "w");
+    if (prime_number_output == NULL) {
+        fprintf(stderr, "[%s] ERROR: failed to open file %s on rank %d: %s\n", processor_name, prime_number_output_filename, rank, strerror(errno));
+
+        MPI_Finalize();
+        return 1;
+    }
+
+    starttime = MPI_Wtime();
 
     /* calculate range of numbers based on rank */
     unsigned long long int total_numbers = (max - min + 1);
@@ -84,7 +110,7 @@ int main(int argc, char *argv[]) {
         local_max = local_min + chunk_size - 1;
     }
 
-    get_prime_number_count(local_min, local_max, &local_prime_number_count);
+    get_prime_number_count(local_min, local_max, &local_prime_number_count, prime_number_output);
 
     /*
      * combine results
@@ -109,6 +135,10 @@ int main(int argc, char *argv[]) {
 
     /* print timer */
     printf("[%s] rank %d spends time %f seconds to find %lu prime number(s)\n", processor_name, rank, endtime - starttime, local_prime_number_count);
+
+    /* flush and close stream */
+    fflush(prime_number_output);
+    fclose(prime_number_output);
 
     /* print result on rank 0 only */
     if (rank == 0) {
