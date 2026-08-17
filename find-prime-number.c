@@ -90,7 +90,8 @@ int main(int argc, char *argv[]) {
     if (prime_number_output == NULL) {
         fprintf(stderr, "[%s] ERROR: failed to open file %s on rank %d: %s\n", processor_name, prime_number_output_filename, rank, strerror(errno));
 
-        MPI_Finalize();
+        /* use MPI_Abort() to abort entire processes for ANY error */
+        MPI_Abort(MPI_COMM_WORLD, 1);
         return 1;
     }
 
