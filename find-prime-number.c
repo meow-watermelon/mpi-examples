@@ -95,6 +95,9 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    /* align ranks */
+    MPI_Barrier(MPI_COMM_WORLD);
+
     starttime = MPI_Wtime();
 
     /* calculate range of numbers based on rank */
@@ -135,11 +138,22 @@ int main(int argc, char *argv[]) {
     endtime = MPI_Wtime();
 
     /* print timer */
-    printf("[%s] rank %d spends time %f seconds to find %lu prime number(s)\n", processor_name, rank, endtime - starttime, local_prime_number_count);
+    for (int i = 0; i < numprocs; ++i) {
+        if (rank == i) {
+            printf("[%s] rank %d spends time %f seconds to find %lu prime number(s)\n", processor_name, rank, endtime - starttime, local_prime_number_count);
+            fflush(stdout);
+        }
+
+        /* align ranks */
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
 
     /* flush and close stream */
     fflush(prime_number_output);
     fclose(prime_number_output);
+
+    /* align ranks */
+    MPI_Barrier(MPI_COMM_WORLD);
 
     /* print result on rank 0 only */
     if (rank == 0) {
